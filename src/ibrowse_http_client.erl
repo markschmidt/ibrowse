@@ -39,7 +39,7 @@
 -include("ibrowse.hrl").
 -include_lib("kernel/include/inet.hrl").
 
--record(state, {host, port, connect_timeout,
+-record(state, {host, port, connect_timeout, connect_time,
                 inactivity_timer_ref,
                 use_proxy = false, proxy_auth_digest,
                 ssl_options = [], is_ssl = false, socket,
@@ -684,11 +684,14 @@ send_req_1(From,
     State_2 = check_ssl_options(Options, State_1),
     do_trace("Connecting...~n", []),
     Conn_timeout = get_value(connect_timeout, Options, Timeout),
+    Conn_time_start = now(),
     case do_connect(Host_1, Port_1, Options, State_2, Conn_timeout) of
         {ok, Sock} ->
+            Conn_time = timer:now_diff(now(), Conn_time_start),
             do_trace("Connected! Socket: ~1000.p~n", [Sock]),
             State_3 = State_2#state{socket = Sock,
-                                    connect_timeout = Conn_timeout},
+                                    connect_timeout = Conn_timeout,
+                                    connect_time = Conn_time},
             send_req_1(From, Url, Headers, Method, Body, Options, Timeout, State_3);
         Err ->
             shutting_down(State_2),
@@ -1069,7 +1072,8 @@ parse_response(Data, #state{reply_buffer = Acc, reqs = Reqs,
         {yes, Headers, Data_1}  ->
             do_trace("Recvd Header Data -> ~s~n----~n", [Headers]),
             do_trace("Recvd headers~n--- Headers Begin ---~n~s~n--- Headers End ---~n~n", [Headers]),
-            {HttpVsn, StatCode, Headers_1, Status_line, Raw_headers} = parse_headers(Headers),
+            {HttpVsn, StatCode, Headers_0, Status_line, Raw_headers} = parse_headers(Headers),
+            Headers_1 = add_statistics_headers(Headers_0, State),
             do_trace("HttpVsn: ~p StatusCode: ~p Headers_1 -> ~1000.p~n", [HttpVsn, StatCode, Headers_1]),
             LCHeaders = [{to_lower(X), Y} || {X,Y} <- Headers_1],
             ConnClose = to_lower(get_value("connection", LCHeaders, "false")),
@@ -1773,6 +1777,9 @@ maybe_add_custom_headers(Headers, Raw_headers, Opts) ->
                             Raw_headers
                     end,
     {Headers_1, Raw_headers_1}.
+
+add_statistics_headers(Headers, #state{connect_time = Connect_time}) ->
+  [{"Ibrowse-Connect-Time", Connect_time} | Headers].
 
 format_response_data(Resp_format, Body) ->
     case Resp_format of
