@@ -703,10 +703,10 @@ send_req_1(From,
     State_2 = check_ssl_options(Options, State_1),
     do_trace("Connecting...~n", []),
     Conn_timeout = get_value(connect_timeout, Options, Timeout),
-    Conn_time_start = now(),
+    Conn_time_start = os:timestamp(),
     case do_connect(Host_1, Port_1, Options, State_2, Conn_timeout) of
         {ok, Sock} ->
-            Conn_time = timer:now_diff(now(), Conn_time_start),
+            Conn_time = timer:now_diff(os:timestamp(), Conn_time_start),
             do_trace("Connected! Socket: ~1000.p~n", [Sock]),
             State_3 = State_2#state{socket = Sock,
                                     connect_timeout = Conn_timeout,
