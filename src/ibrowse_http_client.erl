@@ -433,7 +433,7 @@ accumulate_response(Data, #state{reply_buffer      = RepBuf,
 
 make_tmp_filename(true) ->
     DownloadDir = ibrowse:get_config_value(download_dir, filename:absname("./")),
-    {A,B,C} = now(),
+    {A,B,C} = os:timestamp(),
     filename:join([DownloadDir,
                    "ibrowse_tmp_file_"++
                    integer_to_list(A) ++
@@ -504,18 +504,23 @@ handle_sock_closed(#state{reply_buffer = Buf, reqs = Reqs, http_status_code = SC
             State
     end.
 
-do_connect(Host, Port, Options, #state{is_ssl      = true,
-                                       use_proxy   = false,
-                                       ssl_options = SSLOptions},
-           Timeout) ->
-    ssl:connect(Host, Port, get_sock_options(Host, Options, SSLOptions), Timeout);
-do_connect(Host, Port, Options, _State, Timeout) ->
-    Socks5Host = get_value(socks5_host, Options, undefined),
-    case Socks5Host of
-      undefined ->
-        gen_tcp:connect(Host, Port, get_sock_options(Host, Options, []), Timeout);
-      _ ->
-        catch ibrowse_socks5:connect(Host, Port, Options)
+do_connect(Host, Port, Options, State, Timeout) ->
+    SockOptions = get_sock_options(Host, Options, State#state.ssl_options),
+    case {get_value(socks5_host, Options, undefined), State#state.is_ssl} of
+        {undefined, true} ->
+            ssl:connect(Host, Port, SockOptions, Timeout);
+        {undefined, false} ->
+            gen_tcp:connect(Host, Port, SockOptions, Timeout);
+        {_, _} ->
+            case {ibrowse_socks5:connect(Host, Port, Options, SockOptions, Timeout),
+                  State#state.is_ssl} of
+                {{ok, Socket}, true} ->
+                    ssl:connect(Socket, SockOptions, Timeout);
+                {{ok, Socket}, false} ->
+                    {ok, Socket};
+                {Else, _} ->
+                    Else
+            end
     end.
 
 get_sock_options(Host, Options, SSLOptions) ->
@@ -698,10 +703,10 @@ send_req_1(From,
     State_2 = check_ssl_options(Options, State_1),
     do_trace("Connecting...~n", []),
     Conn_timeout = get_value(connect_timeout, Options, Timeout),
-    Conn_time_start = now(),
+    Conn_time_start = os:timestamp(),
     case do_connect(Host_1, Port_1, Options, State_2, Conn_timeout) of
         {ok, Sock} ->
-            Conn_time = timer:now_diff(now(), Conn_time_start),
+            Conn_time = timer:now_diff(os:timestamp(), Conn_time_start),
             do_trace("Connected! Socket: ~1000.p~n", [Sock]),
             State_3 = State_2#state{socket = Sock,
                                     connect_timeout = Conn_timeout,
@@ -1925,7 +1930,12 @@ cancel_timer(Ref, {eat_message, Msg}) ->
     end.
 
 make_req_id() ->
-    now().
+    case catch erlang:unique_integer() of
+        {'EXIT', _} ->
+            erlang:apply(erlang, now, []);
+        V ->
+            V
+    end.
 
 to_lower(Str) when is_binary(Str) ->
     to_lower(binary_to_list(Str));

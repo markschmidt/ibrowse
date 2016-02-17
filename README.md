@@ -7,7 +7,7 @@ ibrowse is a HTTP client written in erlang.
 
 **Comments to:** chandrashekhar.mullaparthi@gmail.com
 
-**Current Version:** 4.1.1
+**Current Version:** 4.1.2
 
 **Latest Version:** git://github.com/cmullaparthi/ibrowse.git
 
@@ -263,7 +263,7 @@ Example of a `TRACE` request. Very interesting! yaws.hyber.org didn't
 support this. Nor did www.google.com. But good old BBC supports this:
 
 ```erlang
-35> 37> ibrowse:send_req("http://www.bbc.co.uk/", [], trace, [],
+37> ibrowse:send_req("http://www.bbc.co.uk/", [], trace, [],
                          [{proxy_user, "XXXXX"},
                           {proxy_password, "XXXXX"},
                           {proxy_host, "proxy"},

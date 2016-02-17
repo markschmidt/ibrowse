@@ -362,13 +362,14 @@ parse_url([], get_password, Url, TmpAcc) ->
 parse_url([], State, Url, TmpAcc) ->
     {invalid_uri_2, State, Url, TmpAcc}.
 
+default_port(socks5) -> 1080;
 default_port(http)  -> 80;
 default_port(https) -> 443;
 default_port(ftp)   -> 21.
 
 printable_date() ->
     {{Y,Mo,D},{H, M, S}} = calendar:local_time(),
-    {_,_,MicroSecs} = now(),
+    {_,_,MicroSecs} = os:timestamp(),
     [integer_to_list(Y),
      $-,
      integer_to_list(Mo),
